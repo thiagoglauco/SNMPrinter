@@ -1,0 +1,53 @@
+use strict;
+use warnings;
+use lib(".");
+use Printer;
+
+my @ips = @ARGV;
+
+if (not scalar @ips){
+	open IP, "<printers.txt";
+	chomp(@ips = <IP>);
+  }
+
+foreach(@ips){
+	my $printer = Printer->new($_, 'public');
+	print "\n\n******************\n";
+	if ($printer->{IsLive}){
+		print "$printer->{SysName} \t $printer->{IP} Is Live\n";
+	}
+	if ($printer->{Session}){
+		print "Fabricante \t $printer->{ManufacturerName}\n";
+	
+		foreach (keys %{$printer->{PrinterAlertCode}}){
+			print "\t$_ == $printer->{PrinterAlertCode}->{$_}\n";
+		}
+		foreach (@{$printer->{PrinterAlertMessages}}){
+			print "\t$_\n";
+		}
+	}
+}
+
+
+D:\Documents and settings\xxxxx\workspace\Printer>perl print2.pl 10.142.105.205
+
+
+******************
+IM034280-A1HQ    10.142.105.205 Is Live
+Fabricante       Xerox
+        Warning == 0
+        NotEspecified == 3
+        Critical == 0
+        Normal == 0
+        7-515 17-09 Bypass tray is empty. Load additional media in tray. Printin
+g can continue from other available trays.
+        3-551 15-33 The Fax Service is unavailable. Please call for assistance.
+Printing can continue.
+        inputMediaSupplyEmpty(808)
+        inputMediaSupplyLow(807)
+        30
+        7-531 17-14 Tray 1 media supply is low. Additional media may be required
+ to be loaded into this tray soon. Printing can continue.
+
+D:\Documents and settings\xxxxx\workspace\Printer>
+
