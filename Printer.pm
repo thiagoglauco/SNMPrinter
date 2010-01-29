@@ -2,14 +2,12 @@ package Printer;
 
 ###############################################################################
 #
-#este pacote eh uma melhora do Printer.pm para monitorar impressoras em rede.
-#
 #autor: THIAGO GLAUCO SANCHEZ  -- Rocking --
 #Linguagem: Perl
 #arquivo: Print.pm
 #
 #
-#Multiplataforma: testado com Perl 5.8 ao 5.10 
+#Multiplataforma: testado com Perl 5.8 e 5.10 
 #	no Red-Hat, Solaris 10 e Windows 2003 sem alteracoes;
 #
 #Finalidade: Este pacote cria uma abstracao entre o protocolo SNMP 
