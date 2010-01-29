@@ -1,31 +1,42 @@
 package Printer;
 
-#############################################################################################################
+###############################################################################
+#
+#este pacote eh uma melhora do Printer.pm para monitorar impressoras em rede.
+#
+#autor: THIAGO GLAUCO SANCHEZ  -- Rocking --
+#Linguagem: Perl
+#arquivo: Print.pm
 #
 #
-#Finalidade: Este pacote cria uma abstracao entre o protocolo SNMP e elementos de rede do tipo
-#impressora, obtendo informacoes como:
+#Multiplataforma: testado com Perl 5.8 ao 5.10 
+#	no Red-Hat, Solaris 10 e Windows 2003 sem alteracoes;
+#
+#Finalidade: Este pacote cria uma abstracao entre o protocolo SNMP 
+#e elementos de rede do tipo impressora, obtendo informacoes como:
 #	Nome, Fabricante, SystemContact, SystemLocation,
 #	Alarmes e estado do elemento
 #utilizando para isto as MIBs :
 #		iso.org.dod.internet.mgmt.mib-2.system - 1.3.6.1.2.1.1
 #		iso.org.dod.internet.mgmt.mib-2.host - 1.3.6.1.2.1.25
 #		iso.org.dod.internet.mgmt.mib-2.printmib - 1.3.6.1.2.1.43
-#autor: THIAGO GLAUCO SANCHEZ  -- Rocking --
-#Linguagem: Perl
-#arquivo: Printer.pm
 #
-#
-#Multiplataforma: testado com Perl 5.8 ao 5.10 no Red-Hat, Solaris 10 e Windows 2003 sem alteracoes;
-#
-#
-#
-#############################################################################################################
+#############################################################################
+
 
 use strict;
 use warnings;
 use Net::SNMP qw/:ALL/;
 use Net::Ping;
+
+#############################################################################
+#
+#A mib 
+#iso.org.dod.internet.mgmt.mib-2.printmib.prtAlert.prtAlertTable.prtAlertEntry.
+#prtAlertCode 1.3.6.1.2.1.43.18.1.1.7  
+#define todos os códigos do %alarmCode.
+#
+#############################################################################
 
 our %alarmCode = (
 	1	=>	'other',
@@ -80,6 +91,18 @@ our %alarmCode = (
 	);
 
 sub new {
+	
+###############################################################################
+#
+#Cria um Objeto do tipo Printer. Os valores dentro do Hash $self->{Mibs} 
+#eferem-se a posicao de uma MIB na arvore. Para adicionar uma Mib basta
+#adicionar uma chave e valor neste hash, e adicionar a pesquisa equivalente
+#no metodo loadAllSNMP.
+#As propriedades fundamentais do elemento sao IP e checkIsLive.
+#Se a funcao checkIsLive retornar 'false' o objeto
+#retornado tera apenas as propriedades IP e IsLive preenchidos. 
+#
+###############################################################################
 
 my ($class, $ip, $community) = @_;
 
@@ -131,8 +154,8 @@ my ($class, $ip, $community) = @_;
 			&snmpSession($self->{IP}, $self->{Community});
 		if ($self->{Session}){
 			$self->loadAllSNMP();
-			($self->{ManufacturerName},$self->{ManufacturerCode}) = 
-														$self->manufacturer;
+			($self->{ManufacturerName},
+			$self->{ManufacturerCode}) = $self->manufacturer;
 		}
 	}
 
@@ -148,14 +171,21 @@ sub snmpSession{
 				Community => $community,
 				Translate=>TRANSLATE_OCTET_STRING,
 				);
-	if (wantarray){
-		return ($connection,$err);
-	}
-	return $connection;
+				
+	wantarray ? return ($connection,$err) : return $connection;
 }
 
 
 sub checkIsLive{
+	
+##########################################################
+#este método verifica se o elemento esta ativo na rede
+#com o modulo CPAN Net::Ping. Eh enviado um ping TCP Syn
+#e espera-se ate 2 segundos para resposta.
+#caso elemento responda retorna 1. Caso nao responda
+#retorna 0
+##########################################################
+	
 	my $elemento = $_[0];
 
 	my $ping = new Net::Ping;
@@ -172,14 +202,16 @@ sub checkIsLive{
 
 sub snmpGetNext{
 	my ($self,$arrVarbindlist) = @_;
-	my $returnHash = $self->{Session}->get_next_request(Varbindlist=> $arrVarbindlist);
+	my $returnHash = 
+		$self->{Session}->get_next_request(Varbindlist=> $arrVarbindlist);
 	return $returnHash;
 }
 
 
 sub snmpGetTable{
 	my ($self,$scalarBaseOID) = @_;
-	my $returnHash = $self->{Session}->get_table(-baseoid => $scalarBaseOID);
+	my $returnHash = 
+		$self->{Session}->get_table(-baseoid => $scalarBaseOID);
 	return $returnHash;
 }
 
@@ -216,42 +248,61 @@ sub loadAllSNMP{
 									$alarmTable->{$_} == 3));
 		}elsif ($_ =~ /^1\.3\.6\.1\.2\.1\.43\.18\.1\.1\.7/){
 
-			if (exists $alarmCode{$alarmTable->{$_}}){
-				push @{$self->{PrinterAlertMessages}},$alarmCode{$alarmTable->{$_}};
-			}else{
+			exists $alarmCode{$alarmTable->{$_}} ?
+				push @{$self->{PrinterAlertMessages}},
+					  $alarmCode{$alarmTable->{$_}} :
 				push @{$self->{PrinterAlertMessages}}, $alarmTable->{$_} ;
-			}
 		}else{ 
 
 			push @{$self->{PrinterAlertMessages}}, $alarmTable->{$_}
 					if ($_ =~ /^1\.3\.6\.1\.2\.1\.43\.18\.1\.1\.8/);
 
 		}#else{}
-	
-		
 	}
 }
 
-sub manufacturer{
-	my $self = $_[0];
-	open FABRICANTES,"<enterprise.txt";
-	my @objIDSplited = split /\./,$self->{SysObjID};
-	while(<FABRICANTES>){
-		if ($_ =~ /^$objIDSplited[6]\s/){
-			chomp(my @str = split /\t/, $_);
-			return ($str[1],$objIDSplited[6]) if wantarray;
-			return $str[1];
-			last;
-		}
-	}
-}
 
 sub DESTROY{
+	
+##############################################################################
+#
+#Bom, este método apenas formaliza o encerramento da sessão SNMP.
+#Normalmente o coletor de lixo do Perl faria isso, mas experiêncas
+#com garbage colector de outras linguagens me deixa com um receio...
+#Ah... o DESTROY do Net::SNMP é chamado quando a gente chama o close do
+#método ou quando ele perde as referências, então
+#$self->{Session} = undef; faria a mesma coisa. Só achei mais elegante do
+#geito que fiz. Alguém tem idéia melhor?
+#
+##############################################################################
+
 	my $self = $_[0];
 	$self->{Session}->close if $self->{Session};
 }
 
 
+sub manufacturer{
+	
+##############################################################################
+#
+#O arquivo enterprise.txt é um arquivo txt formato, cujas informações foram
+#retiradas do IANA, e contém o código eo nome de todos os fabricantes 
+#de equipamentosde rede. Este código fica na posição 7 do valor obtido por um 
+#snmp getnext na MIB SysObjID. Este método pega o valor já obtido pelo
+#snmp getnext (no metodo loadAllSNMP) faz o split e a pesquisa no arquivo.
+#
+##############################################################################
 
+    my $self = $_[0];
+	open FABRICANTES,"<enterprise.txt";
+	my @objIDSplited = split /\./,$self->{SysObjID};
+	while(<FABRICANTES>){
+		if ($_ =~ /^$objIDSplited[6]\s/){
+			chomp(my @str = split /\t/, $_);
+			wantarray ? return ($str[1],$objIDSplited[6]):return $str[1];
+			return $str[1];
+		}
+	}
+}
 
 1
